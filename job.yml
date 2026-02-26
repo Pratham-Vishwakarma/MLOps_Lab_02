@@ -1,0 +1,8 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+
+command: >
+  python train.py
+
+environment: azureml://registries/azureml/environments/sklearn-1.0/labels/latest
+
+compute: azureml:pratham-cpu-cluster
