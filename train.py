@@ -1,4 +1,4 @@
 import time
 print("Training Model....")
-time.sleep(5)
+time.sleep(2)
 print("Training Complete!")
