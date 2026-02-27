@@ -1,0 +1,58 @@
+pipeline {
+    agent any
+
+    environment {
+        VENV_DIR = "venv"
+    }
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Create Virtual Environment') {
+            steps {
+                powershell '''
+                python -m venv $env:VENV_DIR
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                powershell '''
+                .\\$env:VENV_DIR\\Scripts\\Activate.ps1
+                pip install --upgrade pip
+                pip install -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Run Training Script') {
+            steps {
+                powershell '''
+                .\\$env:VENV_DIR\\Scripts\\Activate.ps1
+                python train.py
+                '''
+            }
+        }
+
+        stage('Archive Model') {
+            steps {
+                archiveArtifacts artifacts: 'model.pkl', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Model Training Completed Successfully!'
+        }
+        failure {
+            echo 'Build Failed!'
+        }
+    }
+}
