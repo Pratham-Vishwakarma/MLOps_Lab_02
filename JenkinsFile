@@ -2,7 +2,9 @@ pipeline {
     agent any
 
     environment {
-        VENV_DIR = "venv"
+        AZURE_CREDENTIALS   = credentials('AZURE_CREDENTIALS')
+        AZURE_RESOURCE_GROUP = credentials('AZURE_RESOURCE_GROUP')
+        AZURE_WORKSPACE     = credentials('AZURE_WORKSPACE')
     }
 
     stages {
@@ -13,46 +15,59 @@ pipeline {
             }
         }
 
-        stage('Create Virtual Environment') {
+        stage('Azure Login') {
             steps {
                 powershell '''
-                python -m venv $env:VENV_DIR
+                $creds = ConvertFrom-Json $env:AZURE_CREDENTIALS
+
+                az login --service-principal `
+                  --username $creds.clientId `
+                  --password $creds.clientSecret `
+                  --tenant $creds.tenantId
+
+                az account set --subscription $creds.subscriptionId
                 '''
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install Azure ML CLI Extension') {
             steps {
                 powershell '''
-                .\\$env:VENV_DIR\\Scripts\\Activate.ps1
-                pip install --upgrade pip
-                pip install -r requirements.txt
+                az extension add -n ml -y
                 '''
             }
         }
 
-        stage('Run Training Script') {
+        stage('Submit Azure ML Job') {
             steps {
                 powershell '''
-                .\\$env:VENV_DIR\\Scripts\\Activate.ps1
-                python train.py
+                az ml job create `
+                  --file job.yml `
+                  --resource-group $env:AZURE_RESOURCE_GROUP `
+                  --workspace-name $env:AZURE_WORKSPACE
                 '''
             }
         }
 
-        stage('Archive Model') {
+        stage('Check Job Status') {
             steps {
-                archiveArtifacts artifacts: 'model.pkl', fingerprint: true
+                powershell '''
+                az ml job list `
+                  --resource-group $env:AZURE_RESOURCE_GROUP `
+                  --workspace-name $env:AZURE_WORKSPACE `
+                  --output table
+                '''
             }
         }
+
     }
 
     post {
         success {
-            echo 'Model Training Completed Successfully!'
+            echo "Azure ML Job Submitted Successfully!"
         }
         failure {
-            echo 'Build Failed!'
+            echo "Pipeline Failed!"
         }
     }
 }
